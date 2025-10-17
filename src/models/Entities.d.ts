@@ -3,9 +3,12 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 export interface FormsOption {
-	local?: boolean
-	id: number
-	text: string
-	order?: number
-	questionId: number
+        local?: boolean
+        id: number
+        text: string
+        order?: number
+        questionId: number
+        maxResponses?: number | null
+        maxResponsesMessage?: string | null
+        responsesCount?: number
 }

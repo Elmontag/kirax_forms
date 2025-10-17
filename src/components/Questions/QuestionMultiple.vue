@@ -70,29 +70,40 @@
 			</NcActionButton>
 		</template>
 		<template v-if="readOnly">
-			<fieldset :name="name || undefined" :aria-labelledby="titleId">
-				<NcNoteCard v-if="hasError" :id="errorId" type="error">
-					{{ errorMessage }}
-				</NcNoteCard>
-				<NcCheckboxRadioSwitch
-					v-for="answer in sortedOptions"
-					:key="answer.id"
-					:aria-errormessage="hasError ? errorId : undefined"
-					:aria-invalid="hasError ? 'true' : undefined"
-					:model-value="questionValues"
-					:value="answer.id.toString()"
-					:name="`${id}-answer`"
-					:type="isUnique ? 'radio' : 'checkbox'"
-					:required="checkRequired(answer.id)"
-					@update:model-value="onChange"
-					@keydown.enter.exact.prevent="onKeydownEnter">
-					{{ answer.text }}
-				</NcCheckboxRadioSwitch>
-				<div v-if="allowOtherAnswer" class="question__other-answer">
-					<NcCheckboxRadioSwitch
-						:model-value="questionValues"
-						:aria-errormessage="hasError ? errorId : undefined"
-						:aria-invalid="hasError ? 'true' : undefined"
+                        <fieldset :name="name || undefined" :aria-labelledby="titleId">
+                                <NcNoteCard v-if="hasError" :id="errorId" type="error">
+                                        {{ errorMessage }}
+                                </NcNoteCard>
+                                <div
+                                        v-for="answer in sortedOptions"
+                                        :key="answer.id"
+                                        class="question__option-wrapper"
+                                >
+                                        <NcCheckboxRadioSwitch
+                                                :aria-errormessage="hasError ? errorId : undefined"
+                                                :aria-invalid="hasError ? 'true' : undefined"
+                                                :model-value="questionValues"
+                                                :value="answer.id.toString()"
+                                                :name="`${id}-answer`"
+                                                :type="isUnique ? 'radio' : 'checkbox'"
+                                                :required="checkRequired(answer.id)"
+                                                :disabled="isOptionDisabled(answer)"
+                                                @update:model-value="onChange"
+                                                @keydown.enter.exact.prevent="onKeydownEnter">
+                                                {{ answer.text }}
+                                        </NcCheckboxRadioSwitch>
+                                        <p
+                                                v-if="isOptionDisabled(answer) && getOptionLimitMessage(answer)"
+                                                class="question__option-limit"
+                                        >
+                                                {{ getOptionLimitMessage(answer) }}
+                                        </p>
+                                </div>
+                                <div v-if="allowOtherAnswer" class="question__other-answer">
+                                        <NcCheckboxRadioSwitch
+                                                :model-value="questionValues"
+                                                :aria-errormessage="hasError ? errorId : undefined"
+                                                :aria-invalid="hasError ? 'true' : undefined"
 						:value="otherAnswer ?? QUESTION_EXTRASETTINGS_OTHER_PREFIX"
 						:name="`${id}-answer`"
 						:type="isUnique ? 'radio' : 'checkbox'"
@@ -302,12 +313,36 @@ export default {
 		this.resetOtherAnswerText()
 	},
 
-	methods: {
-		async validate() {
-			if (!this.isUnique) {
-				// Validate limits
-				const max = this.extraSettings.optionsLimitMax ?? 0
-				const min = this.extraSettings.optionsLimitMin ?? 0
+        methods: {
+                isOptionDisabled(option) {
+                        if (!option?.maxResponses) {
+                                return false
+                        }
+                        const currentCount = option.responsesCount ?? 0
+                        if (currentCount < option.maxResponses) {
+                                return false
+                        }
+                        const optionId = option.id?.toString()
+                        const selectedValues = (Array.isArray(this.values) ? this.values : this.values ? [this.values] : [])
+                                .map((value) => value?.toString())
+
+                        return !selectedValues.includes(optionId)
+                },
+
+                getOptionLimitMessage(option) {
+                        if (!option?.maxResponses) {
+                                return ''
+                        }
+
+                        return option.maxResponsesMessage
+                                || t('forms', 'Requested response limit reached')
+                },
+
+                async validate() {
+                        if (!this.isUnique) {
+                                // Validate limits
+                                const max = this.extraSettings.optionsLimitMax ?? 0
+                                const min = this.extraSettings.optionsLimitMin ?? 0
 				if (max && this.values.length > max) {
 					this.errorMessage = n(
 						'forms',
@@ -500,9 +535,9 @@ export default {
 }
 
 .question__item {
-	position: relative;
-	display: inline-flex;
-	min-height: var(--default-clickable-area);
+        position: relative;
+        display: inline-flex;
+        min-height: var(--default-clickable-area);
 
 	&__pseudoInput {
 		color: var(--color-primary-element);
@@ -542,6 +577,18 @@ export default {
 			margin-block-end: 0;
 		}
 	}
+}
+
+.question__option-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+}
+
+.question__option-limit {
+        margin-inline-start: calc(var(--default-grid-baseline) * 2);
+        color: var(--color-error);
+        font-size: var(--font-size-small, 0.875rem);
 }
 
 .question__other-answer {

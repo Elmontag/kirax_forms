@@ -76,10 +76,11 @@ class FormsMigrator implements IMigrator {
 				foreach ($formData['questions'] as $qKey => $question) {
 					// Do NOT unset ID of question here, as it is necessary for answers.
 					unset($formData['questions'][$qKey]['formId']);
-					foreach ($question['options'] as $oKey => $option) {
-						unset($formData['questions'][$qKey]['options'][$oKey]['id']);
-						unset($formData['questions'][$qKey]['options'][$oKey]['questionId']);
-					}
+                                        foreach ($question['options'] as $oKey => $option) {
+                                                unset($formData['questions'][$qKey]['options'][$oKey]['id']);
+                                                unset($formData['questions'][$qKey]['options'][$oKey]['questionId']);
+                                                unset($formData['questions'][$qKey]['options'][$oKey]['responsesCount']);
+                                        }
 				}
 				foreach ($formData['submissions'] as $sKey => $submission) {
 					unset($formData['submissions'][$sKey]['id']);
@@ -167,13 +168,19 @@ class FormsMigrator implements IMigrator {
 					// Store QuestionId to map Answers.
 					$questionIdMap[$questionData['id']] = $question->getId();
 
-					foreach ($questionData['options'] as $optionData) {
-						$option = new Option();
-						$option->setQuestionId($question->getId());
-						$option->setText($optionData['text']);
+                                        foreach ($questionData['options'] as $optionData) {
+                                                $option = new Option();
+                                                $option->setQuestionId($question->getId());
+                                                $option->setText($optionData['text']);
+                                                if (array_key_exists('maxResponses', $optionData)) {
+                                                        $option->setMaxResponses($optionData['maxResponses']);
+                                                }
+                                                if (array_key_exists('maxResponsesMessage', $optionData)) {
+                                                        $option->setMaxResponsesMessage($optionData['maxResponsesMessage']);
+                                                }
 
-						$this->optionMapper->insert($option);
-					}
+                                                $this->optionMapper->insert($option);
+                                        }
 				}
 
 				foreach ($formData['submissions'] as $submissionData) {

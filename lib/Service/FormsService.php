@@ -9,8 +9,10 @@ namespace OCA\Forms\Service;
 
 use OCA\Forms\Activity\ActivityManager;
 use OCA\Forms\Constants;
+use OCA\Forms\Db\AnswerMapper;
 use OCA\Forms\Db\Form;
 use OCA\Forms\Db\FormMapper;
+use OCA\Forms\Db\Option;
 use OCA\Forms\Db\OptionMapper;
 use OCA\Forms\Db\Question;
 use OCA\Forms\Db\QuestionMapper;
@@ -53,12 +55,13 @@ class FormsService {
 	public function __construct(
 		IUserSession $userSession,
 		private ActivityManager $activityManager,
-		private FormMapper $formMapper,
-		private OptionMapper $optionMapper,
-		private QuestionMapper $questionMapper,
-		private ShareMapper $shareMapper,
-		private SubmissionMapper $submissionMapper,
-		private ConfigService $configService,
+                private FormMapper $formMapper,
+                private OptionMapper $optionMapper,
+                private QuestionMapper $questionMapper,
+                private ShareMapper $shareMapper,
+                private SubmissionMapper $submissionMapper,
+                private AnswerMapper $answerMapper,
+                private ConfigService $configService,
 		private IGroupManager $groupManager,
 		private IUserManager $userManager,
 		private ISecureRandom $secureRandom,
@@ -89,12 +92,16 @@ class FormsService {
 	 */
 	private function getOptions(int $questionId): array {
 		$optionList = [];
-		try {
-			$optionEntities = $this->optionMapper->findByQuestion($questionId);
-			foreach ($optionEntities as $optionEntity) {
-				$optionList[] = $optionEntity->read();
-			}
-		} catch (DoesNotExistException $e) {
+                try {
+                        $optionEntities = $this->optionMapper->findByQuestion($questionId);
+                        $optionIds = array_map(static fn (Option $option) => (int)$option->getId(), $optionEntities);
+                        $usageCounts = $this->answerMapper->countByOptionIds($questionId, $optionIds);
+                        foreach ($optionEntities as $optionEntity) {
+                                $option = $optionEntity->read();
+                                $option['responsesCount'] = $usageCounts[(int)$optionEntity->getId()] ?? 0;
+                                $optionList[] = $option;
+                        }
+                } catch (DoesNotExistException $e) {
 			//handle silently
 		} finally {
 			return $optionList;
