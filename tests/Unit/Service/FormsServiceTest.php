@@ -32,6 +32,7 @@ use OCA\Circles\Model\Circle;
 use OCA\Forms\Activity\ActivityManager;
 
 use OCA\Forms\Constants;
+use OCA\Forms\Db\AnswerMapper;
 use OCA\Forms\Db\Form;
 use OCA\Forms\Db\FormMapper;
 use OCA\Forms\Db\Option;
@@ -86,6 +87,9 @@ class FormsServiceTest extends TestCase {
 	/** @var SubmissionMapper|MockObject */
 	private $submissionMapper;
 
+	/** @var AnswerMapper|MockObject */
+	private $answerMapper;
+
 	/** @var ConfigService|MockObject */
 	private $configService;
 
@@ -118,6 +122,7 @@ class FormsServiceTest extends TestCase {
 		$this->questionMapper = $this->createMock(QuestionMapper::class);
 		$this->shareMapper = $this->createMock(ShareMapper::class);
 		$this->submissionMapper = $this->createMock(SubmissionMapper::class);
+		$this->answerMapper = $this->createMock(AnswerMapper::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->groupManager = $this->createMock(IGroupManager::class);
@@ -151,6 +156,7 @@ class FormsServiceTest extends TestCase {
 			$this->questionMapper,
 			$this->shareMapper,
 			$this->submissionMapper,
+			$this->answerMapper,
 			$this->configService,
 			$this->groupManager,
 			$this->userManager,
@@ -638,6 +644,7 @@ class FormsServiceTest extends TestCase {
 			$this->questionMapper,
 			$this->shareMapper,
 			$this->submissionMapper,
+			$this->answerMapper,
 			$this->configService,
 			$this->groupManager,
 			$this->userManager,
@@ -879,6 +886,7 @@ class FormsServiceTest extends TestCase {
 			$this->questionMapper,
 			$this->shareMapper,
 			$this->submissionMapper,
+			$this->answerMapper,
 			$this->configService,
 			$this->groupManager,
 			$this->userManager,
@@ -992,6 +1000,7 @@ class FormsServiceTest extends TestCase {
 			$this->questionMapper,
 			$this->shareMapper,
 			$this->submissionMapper,
+			$this->answerMapper,
 			$this->configService,
 			$this->groupManager,
 			$this->userManager,
