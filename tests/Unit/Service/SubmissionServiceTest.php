@@ -1119,7 +1119,7 @@ file2.txt"
 			$this->expectExceptionMessage($expected);
 		}
 
-		$this->submissionService->validateSubmission($questions, $answers, 'admin');
+                $this->submissionService->validateSubmission($questions, $answers, 'admin', null);
 		$this->assertTrue(true);
 	}
 };

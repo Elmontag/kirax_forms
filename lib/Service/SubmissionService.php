@@ -380,10 +380,11 @@ class SubmissionService {
 	 * Validate all answers against the questions
 	 * @param array $questions Array of the questions of the form
 	 * @param array $answers Array of the submitted answers
-	 * @param string $formOwnerId Owner of the form
-	 * @throw \InvalidArgumentException if validation failed
-	 */
-	public function validateSubmission(array $questions, array $answers, string $formOwnerId): void {
+         * @param string $formOwnerId Owner of the form
+         * @param int|null $existingSubmissionId Optional submission id that is currently being updated
+         * @throw \InvalidArgumentException if validation failed
+         */
+        public function validateSubmission(array $questions, array $answers, string $formOwnerId, ?int $existingSubmissionId = null): void {
 		// Check by questions
 		foreach ($questions as $question) {
 			$questionId = $question['id'];
@@ -447,23 +448,57 @@ class SubmissionService {
 				$this->validateDateTime($answers[$questionId], Constants::ANSWER_PHPDATETIME_FORMAT[$question['type']], $question['text'] ?? null, $question['extraSettings'] ?? null);
 			}
 
-			// Check if all answers are within the possible options
-			if (in_array($question['type'], Constants::ANSWER_TYPES_PREDEFINED) && empty($question['extraSettings']['allowOtherAnswer'])) {
-				foreach ($answers[$questionId] as $answer) {
-					// Handle linear scale questions
-					if ($question['type'] === Constants::ANSWER_TYPE_LINEARSCALE) {
-						$optionsLowest = $question['extraSettings']['optionsLowest'] ?? 1;
-						$optionsHighest = $question['extraSettings']['optionsHighest'] ?? 5;
-						if (!ctype_digit($answer) || intval($answer) < $optionsLowest || intval($answer) > $optionsHighest) {
-							throw new \InvalidArgumentException(sprintf('The answer for question "%s" must be an integer between %d and %d.', $question['text'], $optionsLowest, $optionsHighest));
-						}
-					}
-					// Search corresponding option, return false if non-existent
-					elseif (!in_array($answer, array_column($question['options'], 'id'))) {
-						throw new \InvalidArgumentException(sprintf('Answer "%s" for question "%s" is not a valid option.', $answer, $question['text']));
-					}
-				}
-			}
+                        $limitedOptions = array_filter($question['options'], static function (array $option): bool {
+                                return isset($option['maxResponses']) && ($option['maxResponses'] ?? 0) > 0;
+                        });
+                        $optionUsageCounts = [];
+                        $optionLimits = [];
+                        if ($limitedOptions !== []) {
+                                $optionIds = array_map(static fn (array $option): int => (int)$option['id'], $limitedOptions);
+                                $optionUsageCounts = $this->answerMapper->countByOptionIds($questionId, $optionIds, $existingSubmissionId);
+                                foreach ($limitedOptions as $option) {
+                                        $optionLimits[(int)$option['id']] = [
+                                                'max' => (int)$option['maxResponses'],
+                                                'message' => $option['maxResponsesMessage'] ?? null,
+                                                'text' => $option['text'],
+                                        ];
+                                }
+                        }
+
+                        // Check if all answers are within the possible options
+                        $allowOtherAnswer = !empty($question['extraSettings']['allowOtherAnswer']);
+
+                        if (in_array($question['type'], Constants::ANSWER_TYPES_PREDEFINED)) {
+                                foreach ($answers[$questionId] as $answer) {
+                                        if ($allowOtherAnswer && is_string($answer) && str_starts_with($answer, Constants::QUESTION_EXTRASETTINGS_OTHER_PREFIX)) {
+                                                continue;
+                                        }
+                                        // Handle linear scale questions
+                                        if ($question['type'] === Constants::ANSWER_TYPE_LINEARSCALE) {
+                                                $optionsLowest = $question['extraSettings']['optionsLowest'] ?? 1;
+                                                $optionsHighest = $question['extraSettings']['optionsHighest'] ?? 5;
+                                                if (!ctype_digit($answer) || intval($answer) < $optionsLowest || intval($answer) > $optionsHighest) {
+                                                        throw new \InvalidArgumentException(sprintf('The answer for question "%s" must be an integer between %d and %d.', $question['text'], $optionsLowest, $optionsHighest));
+                                                }
+                                        }
+                                        // Search corresponding option, return false if non-existent
+                                        elseif (!in_array($answer, array_column($question['options'], 'id'))) {
+                                                throw new \InvalidArgumentException(sprintf('Answer "%s" for question "%s" is not a valid option.', $answer, $question['text']));
+                                        }
+
+                                        $optionId = (int)$answer;
+                                        if (isset($optionLimits[$optionId])) {
+                                                $optionUsageCounts[$optionId] = ($optionUsageCounts[$optionId] ?? 0) + 1;
+                                                if ($optionUsageCounts[$optionId] > $optionLimits[$optionId]['max']) {
+                                                        $message = $optionLimits[$optionId]['message']
+                                                                ?? $this->l10n->t('The option "{option}" is no longer available.', [
+                                                                        'option' => $optionLimits[$optionId]['text'],
+                                                                ]);
+                                                        throw new \InvalidArgumentException($message);
+                                                }
+                                        }
+                                }
+                        }
 
 			// Handle custom validation of short answers
 			if ($question['type'] === Constants::ANSWER_TYPE_SHORT && !$this->validateShortQuestion($question, $answers[$questionId][0])) {

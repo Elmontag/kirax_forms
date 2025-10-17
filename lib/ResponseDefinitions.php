@@ -12,7 +12,10 @@ namespace OCA\Forms;
  *   id: int,
  *   questionId: int|float,
  *   text: string,
- *   order: ?int
+ *   order: ?int,
+ *   maxResponses?: ?int,
+ *   maxResponsesMessage?: ?string,
+ *   responsesCount?: int,
  * }
  *
  * @psalm-type FormsOrder = array{

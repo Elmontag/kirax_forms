@@ -24,19 +24,25 @@
 				{{ t('forms', 'Add multiple options') }}
 			</NcActionButton>
 		</template>
-		<NcSelect
-			v-if="readOnly"
-			:value="selectedOption"
-			:name="name || undefined"
-			:placeholder="selectOptionPlaceholder"
-			:multiple="isMultiple"
-			:required="isRequired"
-			:options="sortedOptions"
-			:searchable="false"
-			label="text"
-			:aria-label-combobox="selectOptionPlaceholder"
-			@input="onInput" />
-		<template v-else>
+                <NcSelect
+                        v-if="readOnly"
+                        :value="selectedOption"
+                        :name="name || undefined"
+                        :placeholder="selectOptionPlaceholder"
+                        :multiple="isMultiple"
+                        :required="isRequired"
+                        :options="selectOptions"
+                        :searchable="false"
+                        label="text"
+                        :aria-label-combobox="selectOptionPlaceholder"
+                        @input="onInput" />
+                <ul v-if="readOnly && optionLimitHints.length" class="question__limit-hints">
+                        <li v-for="hint in optionLimitHints" :key="hint.id">
+                                <strong>{{ hint.text }}</strong>
+                                <span>{{ hint.message }}</span>
+                        </li>
+                </ul>
+                <template v-else>
 			<div v-if="isLoading">
 				<NcLoadingIcon :size="64" />
 			</div>
@@ -128,41 +134,91 @@ export default {
 	},
 
 	computed: {
-		selectOptionPlaceholder() {
-			if (this.readOnly) {
-				return this.answerType.submitPlaceholder
-			}
-			return this.answerType.createPlaceholder
-		},
+                selectOptionPlaceholder() {
+                        if (this.readOnly) {
+                                return this.answerType.submitPlaceholder
+                        }
+                        return this.answerType.createPlaceholder
+                },
 
-		isMultiple() {
-			// This can be extended if we want to include support for <select multiple>
-			return false
-		},
+                isMultiple() {
+                        // This can be extended if we want to include support for <select multiple>
+                        return false
+                },
 
-		shiftDragHandle() {
-			return !this.readOnly && this.options.length !== 0 && !this.isLastEmpty
-		},
+                shiftDragHandle() {
+                        return !this.readOnly && this.options.length !== 0 && !this.isLastEmpty
+                },
 
-		selectedOption() {
-			if (!this.values) {
-				return null
-			}
+                selectedOption() {
+                        if (!this.values) {
+                                return null
+                        }
 
-			const selected = this.values.map((id) =>
-				this.options.find((option) => option.id === parseInt(id)),
-			)
+                        const selected = this.values.map((id) =>
+                                this.options.find((option) => option.id === parseInt(id)),
+                        )
 
-			return this.isMultiple ? selected : selected[0]
-		},
-	},
+                        return this.isMultiple ? selected : selected[0]
+                },
 
-	methods: {
-		onInput(option) {
-			if (Array.isArray(option)) {
-				this.$emit('update:values', [
-					...new Set(option.map((opt) => opt.id)),
-				])
+                selectOptions() {
+                        if (!this.readOnly) {
+                                return this.sortedOptions
+                        }
+
+                        return this.sortedOptions.map((option) => ({
+                                ...option,
+                                disabled: this.isOptionDisabled(option),
+                        }))
+                },
+
+                optionLimitHints() {
+                        if (!this.readOnly) {
+                                return []
+                        }
+
+                        return this.sortedOptions
+                                .filter((option) => this.isOptionDisabled(option))
+                                .map((option) => ({
+                                        id: option.id,
+                                        text: option.text,
+                                        message: this.getOptionLimitMessage(option),
+                                }))
+                },
+        },
+
+        methods: {
+                isOptionDisabled(option) {
+                        if (!option?.maxResponses) {
+                                return false
+                        }
+
+                        const currentCount = option.responsesCount ?? 0
+                        if (currentCount < option.maxResponses) {
+                                return false
+                        }
+
+                        const optionId = option.id?.toString()
+                        const selectedValues = (Array.isArray(this.values) ? this.values : this.values ? [this.values] : [])
+                                .map((value) => value?.toString())
+
+                        return !selectedValues.includes(optionId)
+                },
+
+                getOptionLimitMessage(option) {
+                        if (!option?.maxResponses) {
+                                return ''
+                        }
+
+                        return option.maxResponsesMessage || t('forms', 'Requested response limit reached')
+                },
+
+                onInput(option) {
+                        if (Array.isArray(option)) {
+                                this.$emit('update:values', [
+                                        ...new Set(option.map((opt) => opt.id)),
+                                ])
 				return
 			}
 
@@ -175,9 +231,27 @@ export default {
 
 <style lang="scss" scoped>
 .question__content {
-	display: flex;
-	flex-direction: column;
-	gap: var(--default-grid-baseline);
+        display: flex;
+        flex-direction: column;
+        gap: var(--default-grid-baseline);
+}
+
+.question__limit-hints {
+        margin: calc(var(--default-grid-baseline) / 2) 0 0;
+        padding: 0;
+        list-style: none;
+        color: var(--color-error);
+        font-size: var(--font-size-small, 0.875rem);
+
+        li {
+                display: flex;
+                gap: 4px;
+                align-items: baseline;
+        }
+
+        strong {
+                font-weight: 600;
+        }
 }
 
 .question__item {

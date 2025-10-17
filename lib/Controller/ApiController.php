@@ -880,9 +880,11 @@ class ApiController extends OCSController {
 			$option->setOrder($optionOrder++);
 
 			try {
-				$option = $this->optionMapper->insert($option);
-				// Add the stored option to the collection of added options
-				$addedOptions[] = $option->read();
+                                $option = $this->optionMapper->insert($option);
+                                // Add the stored option to the collection of added options
+                                $optionData = $option->read();
+                                $optionData['responsesCount'] = 0;
+                                $addedOptions[] = $optionData;
 			} catch (IMapperException $e) {
 				$this->logger->error("Failed to add option: {$e->getMessage()}");
 				// Optionally handle the error, e.g., by continuing to the next iteration or returning an error response
@@ -1415,28 +1417,29 @@ class ApiController extends OCSController {
 			throw new OCSBadRequestException('Can only update if allowEditSubmissions is set');
 		}
 
-		$questions = $this->formsService->getQuestions($formId);
-		try {
-			// Is the submission valid
-			$this->submissionService->validateSubmission($questions, $answers, $form->getOwnerId());
-		} catch (\InvalidArgumentException $e) {
-			throw new OCSBadRequestException($e->getMessage());
-		}
+                $questions = $this->formsService->getQuestions($formId);
 
-		// get existing submission of this user
-		try {
-			$submission = $this->submissionMapper->findById($submissionId);
-		} catch (DoesNotExistException $e) {
-			throw new OCSBadRequestException('Submission doesn\'t exist');
-		}
+                // get existing submission of this user
+                try {
+                        $submission = $this->submissionMapper->findById($submissionId);
+                } catch (DoesNotExistException $e) {
+                        throw new OCSBadRequestException('Submission doesn\'t exist');
+                }
 
-		if ($formId !== $submission->getFormId()) {
-			throw new OCSBadRequestException('Submission doesn\'t belong to given form');
-		}
+                if ($formId !== $submission->getFormId()) {
+                        throw new OCSBadRequestException('Submission doesn\'t belong to given form');
+                }
 
-		if ($this->currentUser->getUID() !== $submission->getUserId()) {
-			throw new OCSForbiddenException('Can only update your own submissions');
-		}
+                if ($this->currentUser->getUID() !== $submission->getUserId()) {
+                        throw new OCSForbiddenException('Can only update your own submissions');
+                }
+
+                try {
+                        // Is the submission valid
+                        $this->submissionService->validateSubmission($questions, $answers, $form->getOwnerId(), $submissionId);
+                } catch (\InvalidArgumentException $e) {
+                        throw new OCSBadRequestException($e->getMessage());
+                }
 
 		$submission->setTimestamp(time());
 		$this->submissionMapper->update($submission);

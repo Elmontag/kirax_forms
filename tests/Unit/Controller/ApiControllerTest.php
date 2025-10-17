@@ -1169,9 +1169,9 @@ class ApiControllerTest extends TestCase {
 			->with($formId)
 			->willReturn([['id' => 'q1', 'type' => Constants::ANSWER_TYPE_SHORT, 'options' => []]]);
 
-		$this->submissionService->expects($this->once())
-			->method('validateSubmission')
-			->with($this->anything(), $answers, 'formOwner'); // Removed ->willReturn(true)
+                $this->submissionService->expects($this->once())
+                        ->method('validateSubmission')
+                        ->with($this->anything(), $answers, 'formOwner', $submissionId); // Removed ->willReturn(true)
 
 		$this->submissionMapper->expects($this->once())
 			->method('findById')
@@ -1266,9 +1266,9 @@ class ApiControllerTest extends TestCase {
 			->with($formId)
 			->willReturn([['id' => 'q1', 'type' => Constants::ANSWER_TYPE_SHORT, 'options' => []]]);
 
-		$this->submissionService->expects($this->once())
-			->method('validateSubmission')
-			->with($this->anything(), $answers, 'formOwner'); // Removed ->willReturn(true)
+                $this->submissionService->expects($this->once())
+                        ->method('validateSubmission')
+                        ->with($this->anything(), $answers, 'formOwner', $submissionId); // Removed ->willReturn(true)
 
 		$this->submissionMapper->expects($this->once())
 			->method('findById')
@@ -1305,9 +1305,9 @@ class ApiControllerTest extends TestCase {
 			->with($formId)
 			->willReturn([['id' => 'q1', 'type' => Constants::ANSWER_TYPE_SHORT, 'options' => []]]);
 
-		$this->submissionService->expects($this->once())
-			->method('validateSubmission')
-			->with($this->anything(), $answers, 'formOwner'); // Removed ->willReturn(true)
+                $this->submissionService->expects($this->once())
+                        ->method('validateSubmission')
+                        ->with($this->anything(), $answers, 'formOwner', $submissionId); // Removed ->willReturn(true)
 
 		$this->submissionMapper->expects($this->once())
 			->method('findById')

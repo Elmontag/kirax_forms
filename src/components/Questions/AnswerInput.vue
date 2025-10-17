@@ -26,12 +26,12 @@
 			@compositionend="onCompositionEnd" />
 
 		<!-- Actions for reordering and deleting the option  -->
-		<div v-if="!answer.local" class="option__actions">
-			<NcActions
-				:id="optionDragMenuId"
-				:container="`#${optionDragMenuId}`"
-				:aria-label="t('forms', 'Move option actions')"
-				class="option__drag-handle"
+                <div v-if="!answer.local" class="option__actions">
+                        <NcActions
+                                :id="optionDragMenuId"
+                                :container="`#${optionDragMenuId}`"
+                                :aria-label="t('forms', 'Move option actions')"
+                                class="option__drag-handle"
 				variant="tertiary-no-background">
 				<template #icon>
 					<IconDragIndicator :size="20" />
@@ -52,19 +52,70 @@
 					<template #icon>
 						<IconArrowDown :size="20" />
 					</template>
-					{{ t('forms', 'Move option down') }}
-				</NcActionButton>
-			</NcActions>
-			<NcButton
-				:aria-label="t('forms', 'Delete answer')"
-				variant="tertiary"
-				@click="deleteEntry">
-				<template #icon>
+                                        {{ t('forms', 'Move option down') }}
+                                </NcActionButton>
+                        </NcActions>
+                        <NcButton
+                                :aria-label="limitButtonLabel"
+                                variant="tertiary"
+                                @click="openLimitDialog">
+                                <template #icon>
+                                        <IconCounter :size="20" />
+                                </template>
+                        </NcButton>
+                        <NcButton
+                                :aria-label="t('forms', 'Delete answer')"
+                                variant="tertiary"
+                                @click="deleteEntry">
+                                <template #icon>
 					<IconDelete :size="20" />
 				</template>
 			</NcButton>
-		</div>
-	</li>
+                </div>
+                <div v-if="!answer.local && hasLimit" class="option__limit-info">
+                        <NcBadge class="option__limit-info-badge" type="warning">
+                                {{ limitUsageLabel }}
+                        </NcBadge>
+                        <span v-if="isLimitReached" class="option__limit-info-message">
+                                {{ displayLimitMessage }}
+                        </span>
+                </div>
+
+                <NcDialog
+                        v-if="!answer.local"
+                        :open.sync="isLimitDialogOpen"
+                        :name="t('forms', 'Limit responses for option')"
+                        close-on-click-outside
+                        @update:open="onDialogToggle">
+                        <form class="option__limit-dialog" @submit.prevent="saveLimit">
+                                <NcTextField
+                                        :value="limitValue"
+                                        type="number"
+                                        min="1"
+                                        :label="t('forms', 'Maximum responses for this option')"
+                                        :placeholder="t('forms', 'Unlimited')"
+                                        :helper-text="t('forms', 'Leave empty to remove the limit')"
+                                        @update:value="onLimitValueChange" />
+                                <label class="option__limit-dialog-label" for="option-limit-message">
+                                        {{ t('forms', 'Message shown when the limit is reached') }}
+                                </label>
+                                <textarea
+                                        id="option-limit-message"
+                                        v-model="limitMessage"
+                                        class="option__limit-dialog-textarea"
+                                        rows="3"
+                                        :placeholder="t('forms', 'Requested response limit reached')" />
+                                <div class="option__limit-dialog-actions">
+                                        <NcButton type="button" variant="secondary" @click="closeLimitDialog">
+                                                {{ t('forms', 'Cancel') }}
+                                        </NcButton>
+                                        <NcButton type="submit" variant="primary">
+                                                {{ t('forms', 'Save') }}
+                                        </NcButton>
+                                </div>
+                        </form>
+                </NcDialog>
+        </li>
 </template>
 
 <script>
@@ -75,13 +126,17 @@ import debounce from 'debounce'
 import PQueue from 'p-queue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
+import NcBadge from '@nextcloud/vue/components/NcBadge'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconArrowDown from 'vue-material-design-icons/ArrowDown.vue'
 import IconArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import IconCheckboxBlankOutline from 'vue-material-design-icons/CheckboxBlankOutline.vue'
 import IconRadioboxBlank from 'vue-material-design-icons/RadioboxBlank.vue'
 import IconDelete from 'vue-material-design-icons/TrashCanOutline.vue'
 import IconDragIndicator from '../Icons/IconDragIndicator.vue'
+import IconCounter from 'vue-material-design-icons/Counter.vue'
 import { INPUT_DEBOUNCE_MS } from '../../models/Constants.ts'
 import logger from '../../utils/Logger.js'
 import OcsResponse2Data from '../../utils/OcsResponse2Data.js'
@@ -91,15 +146,19 @@ export default {
 
 	components: {
 		IconArrowDown,
-		IconArrowUp,
-		IconCheckboxBlankOutline,
-		IconDelete,
-		IconDragIndicator,
-		IconRadioboxBlank,
-		NcActions,
-		NcActionButton,
-		NcButton,
-	},
+                IconArrowUp,
+                IconCheckboxBlankOutline,
+                IconDelete,
+                IconCounter,
+                IconDragIndicator,
+                IconRadioboxBlank,
+                NcActions,
+                NcActionButton,
+                NcBadge,
+                NcButton,
+                NcDialog,
+                NcTextField,
+        },
 
 	props: {
 		answer: {
@@ -149,14 +208,17 @@ export default {
 	],
 
 	data() {
-		return {
-			queue: null,
-			debounceOnInput: null,
-			isIMEComposing: false,
-		}
-	},
+                return {
+                        queue: null,
+                        debounceOnInput: null,
+                        isIMEComposing: false,
+                        isLimitDialogOpen: false,
+                        limitValue: '',
+                        limitMessage: '',
+                }
+        },
 
-	computed: {
+        computed: {
 		ariaLabel() {
 			if (this.answer.local) {
 				return t('forms', 'Add a new answer option')
@@ -170,20 +232,56 @@ export default {
 			return `q${this.answer.questionId}o${this.answer.id}__drag_menu`
 		},
 
-		placeholder() {
-			if (this.answer.local) {
-				return t('forms', 'Add a new answer option')
-			}
-			return t('forms', 'Answer number {index}', { index: this.index + 1 })
-		},
+                placeholder() {
+                        if (this.answer.local) {
+                                return t('forms', 'Add a new answer option')
+                        }
+                        return t('forms', 'Answer number {index}', { index: this.index + 1 })
+                },
 
-		pseudoIcon() {
-			return this.isUnique ? IconRadioboxBlank : IconCheckboxBlankOutline
-		},
-	},
+                pseudoIcon() {
+                        return this.isUnique ? IconRadioboxBlank : IconCheckboxBlankOutline
+                },
 
-	created() {
-		this.queue = new PQueue({ concurrency: 1 })
+                hasLimit() {
+                        return (this.answer?.maxResponses ?? null) !== null
+                },
+
+                isLimitReached() {
+                        if (!this.answer?.maxResponses) {
+                                return false
+                        }
+                        const responsesCount = this.answer.responsesCount ?? 0
+                        return responsesCount >= this.answer.maxResponses
+                },
+
+                limitUsageLabel() {
+                        if (!this.answer?.maxResponses) {
+                                return ''
+                        }
+                        const responsesCount = this.answer.responsesCount ?? 0
+                        return t('forms', '{used} of {max} responses used', {
+                                used: responsesCount,
+                                max: this.answer.maxResponses,
+                        })
+                },
+
+                displayLimitMessage() {
+                        if (this.answer?.maxResponsesMessage) {
+                                return this.answer.maxResponsesMessage
+                        }
+                        return t('forms', 'Requested response limit reached')
+                },
+
+                limitButtonLabel() {
+                        return this.answer?.maxResponses
+                                ? t('forms', 'Edit response limit for this option')
+                                : t('forms', 'Set response limit for this option')
+                },
+        },
+
+        created() {
+                this.queue = new PQueue({ concurrency: 1 })
 
 		// As data instead of method, to have a separate debounce per AnswerInput
 		this.debounceOnInput = debounce((event) => {
@@ -310,33 +408,21 @@ export default {
 		 *
 		 * @param {object} answer the answer to sync
 		 */
-		async updateAnswer(answer) {
-			try {
-				await axios.patch(
-					generateOcsUrl(
-						'apps/forms/api/v3/forms/{id}/questions/{questionId}/options/{optionId}',
-						{
-							id: this.formId,
-							questionId: answer.questionId,
-							optionId: answer.id,
-						},
-					),
-					{
-						keyValuePairs: {
-							text: answer.text,
-						},
-					},
-				)
-				logger.debug('Updated answer', { answer })
-			} catch (error) {
-				logger.error('Error while saving answer', { answer, error })
-				showError(t('forms', 'Error while saving the answer'))
-			}
-		},
+                async updateAnswer(answer) {
+                        try {
+                                await this.patchOptionData(answer.questionId, answer.id, {
+                                        text: answer.text,
+                                })
+                                logger.debug('Updated answer', { answer })
+                        } catch (error) {
+                                logger.error('Error while saving answer', { answer, error })
+                                showError(t('forms', 'Error while saving the answer'))
+                        }
+                },
 
-		/**
-		 * Reorder option but keep focus on the button
-		 */
+                /**
+                 * Reorder option but keep focus on the button
+                 */
 		onMoveDown() {
 			this.$emit('move-down')
 			this.focusButton(
@@ -367,22 +453,90 @@ export default {
 		 *
 		 * @param {CompositionEvent} event The input event that triggered adding a new entry
 		 */
-		onCompositionEnd({ target, isComposing }) {
-			this.isIMEComposing = false
-			if (!isComposing) {
-				this.onInput({ target, isComposing })
-			}
-		},
-	},
+                onCompositionEnd({ target, isComposing }) {
+                        this.isIMEComposing = false
+                        if (!isComposing) {
+                                this.onInput({ target, isComposing })
+                        }
+                },
+
+                async patchOptionData(questionId, optionId, keyValuePairs) {
+                        await axios.patch(
+                                generateOcsUrl(
+                                        'apps/forms/api/v3/forms/{id}/questions/{questionId}/options/{optionId}',
+                                        {
+                                                id: this.formId,
+                                                questionId,
+                                                optionId,
+                                        },
+                                ),
+                                { keyValuePairs },
+                        )
+                },
+
+                openLimitDialog() {
+                        this.limitValue = this.answer?.maxResponses ? this.answer.maxResponses.toString() : ''
+                        this.limitMessage = this.answer?.maxResponsesMessage ?? ''
+                        this.isLimitDialogOpen = true
+                },
+
+                closeLimitDialog() {
+                        this.isLimitDialogOpen = false
+                },
+
+                onDialogToggle(open) {
+                        if (!open) {
+                                this.closeLimitDialog()
+                        }
+                },
+
+                onLimitValueChange(value) {
+                        this.limitValue = value?.toString?.() ?? ''
+                },
+
+                async saveLimit() {
+                        const trimmedLimit = this.limitValue?.toString().trim()
+                        const hasLimitValue = trimmedLimit !== ''
+                        let parsedLimit = null
+
+                        if (hasLimitValue) {
+                                parsedLimit = Number.parseInt(trimmedLimit, 10)
+                                if (!Number.isFinite(parsedLimit) || parsedLimit <= 0) {
+                                        showError(t('forms', 'Please enter a valid limit.'))
+                                        return
+                                }
+                        }
+
+                        const payload = {
+                                maxResponses: parsedLimit,
+                                maxResponsesMessage: this.limitMessage?.trim() || null,
+                        }
+
+                        const updatedAnswer = {
+                                ...this.answer,
+                                maxResponses: parsedLimit,
+                                maxResponsesMessage: payload.maxResponsesMessage,
+                        }
+
+                        try {
+                                await this.patchOptionData(this.answer.questionId, this.answer.id, payload)
+                                this.$emit('update:answer', this.index, updatedAnswer)
+                                this.isLimitDialogOpen = false
+                        } catch (error) {
+                                logger.error('Error while saving limit', { payload, error })
+                                showError(t('forms', 'Error while saving the answer'))
+                        }
+                },
+        },
 }
 </script>
 
 <style lang="scss" scoped>
 .question__item {
-	position: relative;
-	display: inline-flex;
-	min-height: var(--default-clickable-area);
-	width: 100%;
+        position: relative;
+        display: inline-flex;
+        min-height: var(--default-clickable-area);
+        width: 100%;
 
 	&__pseudoInput {
 		color: var(--color-primary-element);
@@ -430,7 +584,55 @@ export default {
 			padding-inline-start: calc(
 				var(--default-clickable-area) + var(--default-grid-baseline)
 			) !important;
-		}
-	}
+                }
+        }
+}
+
+.option__limit-info {
+        display: flex;
+        align-items: center;
+        gap: var(--default-grid-baseline);
+        margin-inline-start: calc(var(--default-grid-baseline) * 2);
+        margin-block-start: 4px;
+}
+
+.option__limit-info-badge {
+        white-space: nowrap;
+}
+
+.option__limit-info-message {
+        color: var(--color-error);
+}
+
+.option__limit-dialog {
+        display: flex;
+        flex-direction: column;
+        gap: var(--default-grid-baseline);
+        width: min(420px, 100%);
+}
+
+.option__limit-dialog-label {
+        font-weight: 600;
+}
+
+.option__limit-dialog-textarea {
+        width: 100%;
+        border-radius: var(--border-radius-large);
+        border: 1px solid var(--color-border);
+        padding: calc(var(--default-grid-baseline) / 2);
+        resize: vertical;
+        font: inherit;
+        color: inherit;
+        background-color: var(--color-main-background);
+}
+
+.option__limit-dialog-textarea:focus {
+        outline: 2px solid var(--color-primary-element);
+}
+
+.option__limit-dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: var(--default-grid-baseline);
 }
 </style>
