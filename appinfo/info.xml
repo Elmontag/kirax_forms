@@ -5,8 +5,8 @@
 -->
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
-	<id>forms</id>
-	<name>Forms</name>
+	<id>kirax_forms</id>
+	<name>Kirax_Forms</name>
 	<summary>📝 Simple surveys and questionnaires, self-hosted</summary>
 	<description><![CDATA[**Simple surveys and questionnaires, self-hosted!**
 
@@ -38,6 +38,7 @@
 	<author>Stephan Link</author>
 	<author>Tim Sattizahn</author>
 	<author>Vinzenz Rosenkranz</author>
+	<author>Ludwig Montag</author>
 
 	<types>
 		<prevent_group_restriction />
